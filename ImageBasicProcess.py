@@ -46,10 +46,80 @@ def Clahe_Hist(img):
         clahe_img = cv2.clahe.apply(img)
     return clahe_img
 
-def variance_of_laplacian(image):
-	# blur = int(blur)
-    # if blur is np.nan() or 0: print('Please input (image, blur level).\n Blur must be integer')
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    fm = cv2.Laplacian(gray, cv2.CV_64F).var()
-    return fm
+def Spectrum(img):
+    gray = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
+    r,c = gray.shape[:2]
+    fp = np.zeros([r,c])
+    for x in range(r):
+        for y in range(c):
+            fp[x,y] = np.power(-1,x+y)* gray[x,y]
+    F = np.fft.fft2(fp)
+    Fshift = np.fft.fftshift(F)
+    mag = 20 * np.log(np.abs(Fshift)+1)
+    mag = mag/mag.max()*255
+    g = np.uint8(mag)
+    plt.imshow(g,'gray')
+    plt.show()
+    
+def WienerFilter(img,cutoff,K):
+    gray = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
+    r,c = gray.shape[:2]
+    fp = np.zeros([r,c])
+    for x in range(r):
+        for y in range(c):
+            fp[x,y] = np.power(-1,x+y)* gray[x,y]
+    F = np.fft.fft2(fp)
+    G = F.copy()
+    
+    for u in range(r):
+        for v in range(c):
+            dist = np.sqrt((u-r/2)*(u-r/2) + (v-c/2)*(v-c/2))
+            H = np.exp(-(dist*dist)/(2*cutoff*cutoff))
+            H = H/(H*H+K)
+            G[u,v]*=H
+    
+    gp = np.fft.ifft2(G)
+    gp2 = np.zeros([r,c])
+    for x in range(r):
+        for y in range(c):
+            gp2[x,y] = np.round(np.power(-1,x+y)* np.real(gp[x,y]))
+    g = np.uint8(np.clip(gp2,0,255))
+    
+    return g
 
+def GaussBlur(img):
+    gaussBlur_img = cv2.GaussianBlur(img, (3, 3), cv2.BORDER_DEFAULT)
+    return gaussBlur_img
+
+def Sharpen(img):
+    kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]], np.float32) #锐化
+    dst = cv2.filter2D(img, -1, kernel=kernel)
+    sharpen_img = dst
+    return sharpen_img
+
+
+## Detector
+def BlurDetector (img):
+    ddepth = cv2.CV_64F #64F # cv2.CV_16S  # 
+#     kernel_size = 9 # It is "ksize"
+#     grayImg = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
+    grayImg = img
+    blur_score = cv2.Laplacian(grayImg, ddepth).var() 
+#     blur_score = blur_score/10**6 
+    return blur_score
+
+def BrightnessDetector (img):
+    grayImg = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
+    rows = grayImg.shape[0]
+    cols = grayImg.shape[1]
+    bright_value = np.sum(grayImg)/(255 * rows* cols)
+    return bright_value
+
+def PSNR(original, compressed): 
+    mse = np.mean((original - compressed) ** 2) 
+    if(mse == 0):  # MSE is zero means no noise is present in the signal . 
+                  # Therefore PSNR have no importance. 
+        return 100
+    max_pixel = 255.0
+    psnr = 20 * math.log10(max_pixel / math.sqrt(mse)) 
+    return psnr
